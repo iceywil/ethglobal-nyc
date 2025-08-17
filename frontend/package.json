@@ -1,0 +1,47 @@
+{
+  "name": "my-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@circle-fin/developer-controlled-wallets": "^8.4.0",
+    "@ledgerhq/wallet-api-client": "^1.9.1",
+    "@ledgerhq/wallet-api-client-react": "^1.4.12",
+    "@radix-ui/react-slot": "^1.2.3",
+    "@solana/web3.js": "^1.98.4",
+    "avail-nexus-sdk": "^0.0.10",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "dotenv": "^17.2.1",
+    "ethers": "^6.15.0",
+    "framer-motion": "^12.23.12",
+    "geist": "^1.4.2",
+    "lightweight-charts": "^5.0.8",
+    "lucide-react": "^0.539.0",
+    "next": "15.4.6",
+    "node-forge": "^1.3.1",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-phone-number-input": "^3.4.12",
+    "react-select": "^5.10.2",
+    "recharts": "^3.1.2",
+    "tailwind-merge": "^3.3.1"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.4.6",
+    "tailwindcss": "^4",
+    "tw-animate-css": "^1.3.6",
+    "typescript": "^5"
+  }
+}
