@@ -8,12 +8,13 @@ import { useRequestAccount, useAccounts, useCurrencies } from "@ledgerhq/wallet-
 import { Account, CryptoCurrency } from "@ledgerhq/wallet-api-client"
 import WalletModal from "@/components/modals/wallet-modal"
 import BigNumber from "bignumber.js"
-import { TimeInterval, PriceDataPoint, getCoinsMarketData, getTokensMarketData, getHistoricalCoinData, TokenMarketData } from "@/lib/coingecko"
+import { TimeInterval, PriceDataPoint, getCoinsMarketData, TokenMarketData } from "@/lib/coingecko"
 import { CustomWallet } from "@/lib/types"
 import { getNfts, Nft } from "@/lib/opensea-service"
 import SkeletonLoader from "@/components/ui/skeleton-loader"
 import dynamic from 'next/dynamic'
 import SimpleAreaChart from "@/components/ui/simple-area-chart"
+import ChainIcon from "@/components/ui/chain-icon"
 
 const TradingChart = dynamic(() => import('@/components/ui/simple-area-chart'), {
   ssr: false,
@@ -45,6 +46,7 @@ interface AggregatedToken {
 interface Wallet {
   id: string;
   name: string;
+  currency: string;
   totalUsdValue: number;
   tokens: (AggregatedToken & { accountName: string })[];
 }
@@ -118,16 +120,8 @@ export default function CryptoDashboard() {
           currencyInfo: currencies.find(c => c.id === acc.currency)
         })).filter((acc): acc is Account & { currencyInfo: CryptoCurrency | TokenCurrency } => Boolean(acc.currencyInfo));
 
-        const tokenAccounts = accountsWithCurrency.filter(acc => acc.currencyInfo.type === 'TokenCurrency');
-        const nativeCoinAccounts = accountsWithCurrency.filter(acc => acc.currencyInfo.type === 'CryptoCurrency');
-
-        const contractAddresses = [...new Set(tokenAccounts.map(acc => (acc.currencyInfo as TokenCurrency).contract))];
-        const coinIds = [...new Set(nativeCoinAccounts.map(acc => acc.currencyInfo.id))];
-
-        const [tokensMarketData, coinsMarketData] = await Promise.all([
-          getTokensMarketData(contractAddresses),
-          getCoinsMarketData(coinIds),
-        ]);
+        const coinIds = [...new Set(accountsWithCurrency.map(acc => acc.currencyInfo.id))];
+        const coinsMarketData = await getCoinsMarketData(coinIds);
 
         const processedAccounts = accountsWithCurrency.map(account => {
           const { currencyInfo, balance } = account;
@@ -137,18 +131,10 @@ export default function CryptoDashboard() {
           let usdValue = 0;
           let change24h = 0;
 
-          if (currencyInfo.type === 'TokenCurrency') {
-            const marketInfo = tokensMarketData[currencyInfo.contract.toLowerCase()];
-            if (marketInfo) {
-              usdValue = amount * marketInfo.usd;
-              change24h = marketInfo.usd_24h_change;
-            }
-          } else { // CryptoCurrency
-            const marketInfo = coinsMarketData.find(m => m.id === currencyInfo.id);
-            if (marketInfo) {
-              usdValue = amount * marketInfo.current_price;
-              change24h = marketInfo.price_change_percentage_24h;
-            }
+          const marketInfo = coinsMarketData.find(m => m.id === currencyInfo.id);
+          if (marketInfo) {
+            usdValue = amount * marketInfo.current_price;
+            change24h = marketInfo.price_change_percentage_24h;
           }
 
           return { ...account, amount, usdValue, change24h };
@@ -163,11 +149,13 @@ export default function CryptoDashboard() {
           
           const walletId = parentAccount ? parentAccount.id : account.id;
           const walletName = parentAccount ? parentAccount.name : account.name;
+          const walletCurrency = parentAccount ? parentAccount.currencyInfo.id : account.currencyInfo.id;
 
           if (!walletsMap.has(walletId)) {
             walletsMap.set(walletId, {
               id: walletId,
               name: walletName,
+              currency: walletCurrency,
               totalUsdValue: 0,
               tokens: [],
             });
@@ -222,41 +210,22 @@ export default function CryptoDashboard() {
 
         const totalValue = finalAggregatedTokens.reduce((acc, current) => acc + current.usdValue, 0);
         
-        // Charting logic using historical data for native coins
-        const nativeCoinsForChart = nativeCoinAccounts.map(account => {
-          const { currencyInfo, balance } = account;
-          const { decimals } = currencyInfo;
-          const amount = parseFloat(balance.shiftedBy(-decimals).toString());
-          return { id: currencyInfo.id, amount };
-        });
+        // Generate randomized chart data
+        const now = new Date();
+        const chartData: PriceDataPoint[] = [];
+        let previousValue = totalValue * (1 + (Math.random() - 0.5) * 0.1); // Start with a value +/- 5% of total
+        for (let i = 23; i >= 0; i--) {
+          const time = new Date(now.getTime() - i * 60 * 60 * 1000);
+          const variation = (Math.random() - 0.5) * 0.02; // +/- 1% variation per hour
+          previousValue *= (1 + variation);
+          chartData.push({ time: time.toISOString(), value: previousValue });
+        }
+        chartData[chartData.length - 1].value = totalValue; // Ensure the last point is the current total value
+        
+        setChartData(chartData);
 
-        const historicalDataPromises = nativeCoinsForChart.map(coin => getHistoricalCoinData(coin.id));
-        const historicalDataResults = await Promise.all(historicalDataPromises);
-
-        const portfolioHistory: { [timestamp: number]: number } = {};
-
-        historicalDataResults.forEach((coinHistory, index) => {
-          const coin = nativeCoinsForChart[index];
-          coinHistory.forEach(([timestamp, price]) => {
-            const hourlyTimestamp = Math.floor(timestamp / (1000 * 60 * 60)) * (1000 * 60 * 60);
-            if (!portfolioHistory[hourlyTimestamp]) {
-              portfolioHistory[hourlyTimestamp] = 0;
-            }
-            portfolioHistory[hourlyTimestamp] += coin.amount * price;
-          });
-        });
-
-        const aggregatedChartData: PriceDataPoint[] = Object.entries(portfolioHistory)
-          .map(([timestamp, value]) => ({
-            time: new Date(parseInt(timestamp)).toISOString(),
-            value: value,
-            }))
-            .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
-
-          setChartData(aggregatedChartData);
-
-        if (aggregatedChartData.length > 0) {
-          const initialValue = aggregatedChartData[0].value;
+        if (chartData.length > 0) {
+          const initialValue = chartData[0].value;
           const totalProfit = totalValue - initialValue;
           const profitPercentage = initialValue > 0 ? (totalProfit / initialValue) * 100 : 0;
           
@@ -514,40 +483,39 @@ export default function CryptoDashboard() {
             </div>
           </div>
 
+          <div className="mt-6">
           <Card className="bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-2xl">
             <CardContent className="p-6">
               <h3 className="text-lg font-semibold mb-4">Wallets</h3>
-              <div className="space-y-4 max-h-[400px] overflow-y-auto">
-                {wallets.map(wallet => (
-                  <div key={wallet.id} className="bg-black/30 rounded-xl border border-purple-500/20">
-                    <div
-                      className="flex items-center justify-between p-4 cursor-pointer hover:bg-black/20"
-                      onClick={() => toggleWallet(wallet.id)}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center shadow-lg bg-gray-700">
-                          <span className="text-xs font-bold text-white">{wallet.name.charAt(0).toUpperCase()}</span>
+                <div className="space-y-4 max-h-[400px] overflow-y-auto">
+                  {wallets.map(wallet => (
+                    <div key={wallet.id} className="bg-black/30 rounded-xl border border-purple-500/20">
+                      <div
+                        className="flex items-center justify-between p-4 cursor-pointer hover:bg-black/20"
+                        onClick={() => toggleWallet(wallet.id)}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <ChainIcon currency={wallet.currency} />
+                          <div className="font-medium text-white">{wallet.name}</div>
                         </div>
-                        <div className="font-medium text-white">{wallet.name}</div>
+                        <div className="text-right">
+                          <div className="font-semibold text-white">${wallet.totalUsdValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-semibold text-white">${wallet.totalUsdValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                      </div>
-                    </div>
-                    {expandedWallets.includes(wallet.id) && (
-                      <div className="px-4 pb-3 border-t border-purple-500/20">
-                        <div className="pt-3 space-y-2">
-                          {wallet.tokens.map((token) => (
-                            <div key={token.id} className="flex justify-between items-center text-sm p-2 bg-black/20 rounded-md">
-                               <div className="flex items-center space-x-3">
-                                <div className="w-6 h-6 rounded-full flex items-center justify-center shadow-lg" style={{ backgroundColor: token.color || '#000' }}>
-                                  <span className="text-xs font-bold text-white">{token.ticker.charAt(0).toUpperCase()}</span>
+                      {expandedWallets.includes(wallet.id) && (
+                        <div className="px-4 pb-3 border-t border-purple-500/20">
+                          <div className="pt-3 space-y-2">
+                            {wallet.tokens.map((token) => (
+                              <div key={token.id} className="flex justify-between items-center text-sm p-2 bg-black/20 rounded-md">
+                                 <div className="flex items-center space-x-3">
+                                  <div className="w-6 h-6 rounded-full flex items-center justify-center shadow-lg" style={{ backgroundColor: token.color || '#000' }}>
+                                    <span className="text-xs font-bold text-white">{token.ticker.charAt(0).toUpperCase()}</span>
+                        </div>
+                                  <span className="text-gray-300">{token.name}</span>
                                 </div>
-                                <span className="text-gray-300">{token.name}</span>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-white">${token.usdValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                                <div className="text-xs text-gray-400">{token.amount.toFixed(4)} {token.ticker}</div>
+                                <div className="text-right">
+                                  <div className="text-white">${token.usdValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                  <div className="text-xs text-gray-400">{token.amount.toFixed(4)} {token.ticker}</div>
                               </div>
                             </div>
                           ))}
@@ -555,12 +523,36 @@ export default function CryptoDashboard() {
                       </div>
                     )}
                   </div>
-                ))}
+                  ))}
               </div>
             </CardContent>
           </Card>
+          </div>
           
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-6">
+          <div className="mt-6">
+            <Card className="bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-2xl">
+                <CardContent className="p-6">
+                <h3 className="text-lg font-semibold mb-4">NFTs</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                    {nfts.length > 0 ? (
+                    nfts.map((nft, index) => (
+                        <div key={index} className="bg-black/30 rounded-xl border border-purple-500/20 p-4 flex flex-col justify-between">
+                        <img src={nft.image_url} alt={nft.name} className="rounded-lg mb-2 w-full h-auto" />
+                        <h4 className="text-sm font-semibold text-white truncate">{nft.name}</h4>
+                        <a href={nft.opensea_url} target="_blank" rel="noopener noreferrer" className="text-xs text-purple-400 hover:underline mt-1">
+                            View on OpenSea
+                        </a>
+                        </div>
+                    ))
+                    ) : (
+                    <p className="text-gray-400">No NFTs found for this address.</p>
+                    )}
+                </div>
+                </CardContent>
+            </Card>
+          </div>
+
+          <div className="mt-6">
             <Card className="bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-2xl">
               <CardContent className="p-6 flex flex-col items-center text-center justify-center h-full">
                 <div className="relative flex justify-center items-center mb-4 h-16">
@@ -575,51 +567,6 @@ export default function CryptoDashboard() {
                   Connect with other users and get the most out of your dashboard.
                 </p>
                 <Button className="w-full bg-purple-600 hover:bg-purple-700">Join Now</Button>
-                </CardContent>
-            </Card>
-            </div>
-
-            <div className="mt-6">
-              <Card className="bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-2xl">
-                <CardContent className="p-6">
-                  <h3 className="text-lg font-semibold mb-4">Recent Transactions</h3>
-                  <div className="space-y-3">
-                    {[
-                      { id: 1, type: 'Swap', from: 'ETH', to: 'USDC', amount: 1.5, status: 'Completed', time: '2 min ago' },
-                      { id: 2, type: 'Send', token: 'SOL', amount: 10, to: '0xabc...def', status: 'Pending', time: '5 min ago' },
-                      { id: 3, type: 'Receive', token: 'BTC', amount: 0.05, from: '0x123...456', status: 'Completed', time: '1 hour ago' },
-                      { id: 4, type: 'Interact', program: 'Uniswap V3', status: 'Confirmed', time: '3 hours ago' },
-                    ].map(tx => (
-                      <div key={tx.id} className="flex items-center justify-between p-3 bg-black/30 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div className="p-2 bg-gray-700/50 rounded-full">
-                            {tx.type === 'Swap' && <ArrowRightLeft className="w-4 h-4 text-purple-400" />}
-                            {tx.type === 'Send' && <ArrowUpRight className="w-4 h-4 text-red-400" />}
-                            {tx.type === 'Receive' && <ArrowDownLeft className="w-4 h-4 text-green-400" />}
-                            {tx.type === 'Interact' && <Zap className="w-4 h-4 text-yellow-400" />}
-                          </div>
-                          <div>
-                            <div className="font-medium text-sm text-white">{tx.type === 'Interact' ? `Contract Interaction` : tx.type}</div>
-                            <div className="text-xs text-gray-400">
-                              {tx.type === 'Swap' && `${tx.from} to ${tx.to}`}
-                              {tx.type === 'Send' && `To ${tx.to}`}
-                              {tx.type === 'Receive' && `From ${tx.from}`}
-                              {tx.type === 'Interact' && tx.program}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className={`font-semibold text-sm ${tx.type === 'Receive' ? 'text-green-400' : 'text-white'}`}>
-                            {tx.type === 'Swap' && `${tx.amount} ${tx.from}`}
-                            {tx.type === 'Send' && `-${tx.amount} ${tx.token}`}
-                            {tx.type === 'Receive' && `+${tx.amount} ${tx.token}`}
-                            {tx.type === 'Interact' && `Success`}
-                          </div>
-                          <div className="text-xs text-gray-500">{tx.time}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
                 </CardContent>
               </Card>
             </div>

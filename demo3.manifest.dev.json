@@ -1,0 +1,55 @@
+{
+  "$schema": "https://live-app-catalog.ledger.com/schema.json",
+  "id": "swap-live-app-demo-3",
+  "author": "ledger",
+  "private": true,
+  "name": "Swap",
+  "url": "http://localhost:3000",
+  "homepageUrl": "http://localhost:3000",
+  "platforms": ["desktop"],
+  "apiVersion": "^2.0.0",
+  "manifestVersion": "2",
+  "branch": "experimental",
+  "categories": ["exchange"],
+  "currencies": "*",
+  "content": {
+    "shortDescription": {
+      "en": "Swap web app"
+    },
+    "description": {
+      "en": "Swap web app"
+    }
+  },
+  "permissions": [
+    "account.list",
+    "account.receive",
+    "account.request",
+    "bitcoin.getXPub",
+    "currency.list",
+    "custom.exchange.complete",
+    "custom.exchange.error",
+    "custom.exchange.start",
+    "custom.exchange.swap",
+    "custom.getFee",
+    "custom.getTransactionByHash",
+    "custom.swapRedirectToHistory",
+    "custom.saveSwapToHistory",
+    "custom.throwExchangeErrorToLedgerLive",
+    "custom.throwGenericErrorToLedgerLive",
+    "custom.isReady",
+    "device.close",
+    "device.exchange",
+    "device.transport",
+    "event.account.updated",
+    "exchange.complete",
+    "exchange.start",
+    "message.sign",
+    "transaction.sign",
+    "transaction.signAndBroadcast",
+    "wallet.capabilities",
+    "wallet.info",
+    "wallet.userId"
+  ],
+  "domains": ["http://", "https://", "http://localhost:3000"],
+  "visibility": "complete"
+}
