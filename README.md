@@ -1,18 +1,14 @@
-- Your overall experience using our docs
-- ﻿﻿Detailed analysis of documentation gaps
-- ﻿﻿Suggestions for improvements with concrete examples
-- ﻿﻿Identification of unclear or missing information
-﻿﻿- Ideas for better code examples or tutorial
-﻿﻿- UX/navigation improvement suggestion
+🧿 Ledger Vision
 
+See every token you own across all wallets & chains in one secure Ledger Live Dapp.
 
-The doc was really large 
+Documentation feedback :
+- The doc was really large but covered every parts of what Ledger can offer to a developer.
+- Probably better navigation menus would be cool, I used mostly Ledger Services kit I found in the homepage and later had to find my way to Ledger Live docs.
+- Also a react/next.js Ledger Dapp boilerplate with simple useAccounts and sign would be cool.
+- Except from that it was really smooth.
+- Maybe also a few examples of what can be built with each documentation link needed would be nice.
 
-
-
-DOCS LEDGER :
-
+Small typo :
 https://developers.ledger.com/docs/ledger-live/discover/getting-started
 setion instead of section
-3. Clear signing (EVM only)
-The next step is to ensure your dApps users will be able to clear sign their transaction. For more information about clear signing read this setion.
