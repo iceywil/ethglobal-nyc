@@ -12,3 +12,7 @@ Documentation feedback :
 Small typo :
 https://developers.ledger.com/docs/ledger-live/discover/getting-started
 setion instead of section
+
+
+Showcase :
+https://ethglobal.com/showcase/ledger-vision-579jo
